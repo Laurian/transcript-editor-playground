@@ -1,7 +1,8 @@
 import React from 'react';
 // import { Editor, EditorState } from 'draft-js';
 import Draft, { Editor, EditorState, CompositeDecorator, convertFromRaw, convertToRaw, getDefaultKeyBinding, Modifier } from 'draft-js';
-// import produce from 'immer';
+import produce from 'immer';
+import chunk from 'lodash.chunk';
 
 import WrapperBlock from './WrapperBlock';
 import Token from './Token';
@@ -44,54 +45,30 @@ const decorator = new CompositeDecorator([
 class App extends React.Component {
   state = {
     readOnly: false,
-    // editorState: EditorState.createEmpty(),
   };
 
   player = React.createRef();
 
   static getDerivedStateFromProps(props, state) {
     const { transcript } = props;
-
     if (transcript && !state.editorState) {
-      const { segments } = transcript;
-      const blocks = segments.map(({ text, start, end, speaker, id, words }, index) => ({
-        key: id,
-        text,
-        type: 'paragraph',
-        data: {
-          start,
-          end,
-          speaker,
-          index,
-          id,
-        },
-        entityRanges: words.map(({ start, end, text, offset, length, id }) => ({
-          start,
-          end,
+      const editorState = chunk(transcript.segments, 5).map(segments => {
+        const blocks = segments.map(({ text, start, end, speaker, id, words }, index) => ({
           text,
-          played: false,
-          offset,
-          length,
           key: id,
-        })),
-        inlineStyleRanges: [],
-      }));
-      // console.log(blocks);
+          type: 'paragraph',
+          data: { start, end, speaker, id },
+          entityRanges: words.map(({ start, end, text, offset, length, id }) => ({ start, end, text, offset, length, key: id })),
+          inlineStyleRanges: [],
+        }));
 
-      const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce((acc, data) => ({
-        ...acc,
-        [data.key]: {
-          type: 'TOKEN',
-          mutability: 'MUTABLE',
-          data,
-        },
-      }), {});
-      // console.log(entityMap);
+        const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce((acc, data) => ({
+          ...acc,
+          [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
+        }), {});
 
-      const editorState = EditorState.createWithContent(convertFromRaw({
-        blocks,
-        entityMap,
-      }), decorator);
+        return EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator);
+      }).reduce((acc, s, i) => ({...acc, [`ed${i}`]: s}), {});
 
       return { editorState };
     }
@@ -145,47 +122,65 @@ class App extends React.Component {
   }
 
   onTimeUpdate = event => {
+    return;
     const time = this.player.current.currentTime * 1e3;
 
     const contentState = this.state.editorState.getCurrentContent();
-      // const currentBlockKey = this.state.editorState.getSelection().getStartKey();
+    // const currentBlockKey = this.state.editorState.getSelection().getStartKey();
 
-      // let forceRender = false;
-      let playheadBlockIndex = -1;
+    // let forceRender = false;
+    let playheadBlockIndex = -1;
 
-      const blocks = contentState.getBlocksAsArray();
+    const blocks = contentState.getBlocksAsArray();
 
-      playheadBlockIndex = blocks.findIndex(block => {
-        // const { start, end } = this.state.segments[block.getData().get('id') || block.getKey()];
-        const start = block.getData().get('start');
-        const end = block.getData().get('end');
+    playheadBlockIndex = blocks.findIndex(block => {
+      // const { start, end } = this.state.segments[block.getData().get('id') || block.getKey()];
+      const start = block.getData().get('start');
+      const end = block.getData().get('end');
+      return start <= time && time < end;
+    });
+
+    // console.log(`playheadBlockIndex: ${playheadBlockIndex} @${time}`);
+
+    if (playheadBlockIndex > -1) {
+      const playheadBlock = blocks[playheadBlockIndex];
+      // console.log(`playheadBlock: ${playheadBlock.getKey()} ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].start} - ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].end}`);
+      const playheadEntity = [...new Set(playheadBlock.getCharacterList().toArray().map(character => character.getEntity()))].filter(value => !!value).find((entity) => {
+        const { start, end } = contentState.getEntity(entity).getData();
         return start <= time && time < end;
       });
 
-      // console.log(`playheadBlockIndex: ${playheadBlockIndex} @${time}`);
-
-      if (playheadBlockIndex > -1) {
-        const playheadBlock = blocks[playheadBlockIndex];
-        // console.log(`playheadBlock: ${playheadBlock.getKey()} ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].start} - ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].end}`);
-        const playheadEntity = [...new Set(playheadBlock.getCharacterList().toArray().map(character => character.getEntity()))].filter(value => !!value).find((entity) => {
-          const { start, end } = contentState.getEntity(entity).getData();
-          return start <= time && time < end;
-        });
-
-        if (playheadEntity) {
-          const { key } = contentState.getEntity(playheadEntity).getData();
-          // console.log(`playheadBlockKey: ${playheadBlock.getKey()} playheadEntityKey: ${key}`);
-          this.setState({ playheadBlockKey: playheadBlock.getKey(), playheadEntityKey: key });
-        } else {
-          // console.log(`playheadBlockKey: ${playheadBlock.getKey()}`);
-          this.setState({ playheadBlockKey: playheadBlock.getKey() });
-        }
+      if (playheadEntity) {
+        const { key } = contentState.getEntity(playheadEntity).getData();
+        // console.log(`playheadBlockKey: ${playheadBlock.getKey()} playheadEntityKey: ${key}`);
+        this.setState({ playheadBlockKey: playheadBlock.getKey(), playheadEntityKey: key });
+      } else {
+        // console.log(`playheadBlockKey: ${playheadBlock.getKey()}`);
+        this.setState({ playheadBlockKey: playheadBlock.getKey() });
       }
+    }
   }
 
-  onChange = editorState => {
-    this.setState({ editorState });
+  onChange = (editorState, editorKey) => {
+    const nextState = produce(this.state.editorState, draftState => {
+      draftState[editorKey] = editorState;
+    });
+
+    this.setState({ editorState: nextState });
   }
+
+  renderEditor = editorKey => (
+    <section key={editorKey} data-editor-key={editorKey}>
+      <Editor
+        editorKey={editorKey}
+        stripPastedStyles
+        editorState={this.state.editorState[editorKey]}
+        blockRenderMap={extendedBlockRenderMap}
+        blockRendererFn={this.customBlockRenderer}
+        onChange={editorState => this.onChange(editorState, editorKey)}
+      />
+    </section>
+  );
 
   render() {
     return (
@@ -206,13 +201,7 @@ class App extends React.Component {
           { `div[data-offset-key="${this.state.playheadBlockKey}-0-0"] ~ div > .WrapperBlock > div[data-offset-key] > span { color: #696969; }` }
           { `span[data-entity-key="${this.state.playheadEntityKey}"] ~ span[data-entity-key] { color: #696969; }` }
         </style>
-          <Editor
-            stripPastedStyles
-            editorState={this.state.editorState}
-            blockRenderMap={extendedBlockRenderMap}
-            blockRendererFn={this.customBlockRenderer}
-            onChange={editorState => this.onChange(editorState)}
-          />
+        {Object.keys(this.state.editorState).map(key => this.renderEditor(key))}
         </div>
       </article>
     );
