@@ -1,8 +1,8 @@
 import React from 'react';
-// import { Editor, EditorState } from 'draft-js';
 import Draft, { Editor, EditorState, CompositeDecorator, convertFromRaw, convertToRaw, getDefaultKeyBinding, Modifier } from 'draft-js';
-import produce from 'immer';
 import chunk from 'lodash.chunk';
+import VisibilitySensor from 'react-visibility-sensor';
+
 
 import WrapperBlock from './WrapperBlock';
 import Token from './Token';
@@ -11,16 +11,6 @@ import './App.css';
 
 const flatten = list => list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
-const blockRenderMap = {
-  paragraph: {
-    element: 'section',
-  },
-  timecodeBlock: {
-    element: 'div',
-  },
-};
-
-const extendedBlockRenderMap = Draft.DefaultDraftBlockRenderMap.merge(blockRenderMap);
 
 const getEntityStrategy = mutability => (contentBlock, callback, contentState) => {
   contentBlock.findEntityRanges(
@@ -51,8 +41,8 @@ class App extends React.Component {
 
   static getDerivedStateFromProps(props, state) {
     const { transcript } = props;
-    if (transcript && !state.editorState) {
-      const editorState = chunk(transcript.segments, 5).map(segments => {
+    if (transcript && !state.editorStates) {
+      const editorStates = chunk(transcript.segments, 5).map(segments => {
         const blocks = segments.map(({ text, start, end, speaker, id, words }, index) => ({
           text,
           key: id,
@@ -68,9 +58,11 @@ class App extends React.Component {
         }), {});
 
         return EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator);
-      }).reduce((acc, s, i) => ({...acc, [`ed${i}`]: s}), {});
+      }).reduce((acc, s, i) => ({...acc, [`editor-${i}`]: s}), {});
 
-      return { editorState };
+      const previewEditorStates = Object.values(editorStates).map(editorState => EditorState.createWithContent(convertFromRaw({ blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({...block, entityRanges: []})), entityMap: {}}), decorator)).reduce((acc, s, i) => ({...acc, [`editor-${i}`]: s}), {});
+
+      return { editorStates, previewEditorStates };
     }
   }
 
@@ -80,25 +72,6 @@ class App extends React.Component {
       return {
         component: WrapperBlock,
         props: {
-          // retime: (time, block, tcStart, tcEnd) => this.retime(time, block, tcStart, tcEnd),
-          // focus: focus => this.focus(focus),
-          // getTiming: () => {
-          //   const { start, end } = this.state.segments[contentBlock.getData().get('id') || contentBlock.getKey()];
-          //   let min = -(1 / FPS);
-          //   let max = Number.MAX_VALUE;
-          //   const blocks = this.state.editorState.getCurrentContent().getBlockMap().toArray();
-          //   const index = blocks.findIndex(b => b === contentBlock);
-
-          //   if (index > 0) {
-          //     min = this.state.segments[blocks[index - 1].getData().get('id') || blocks[index - 1].getKey()].end;
-          //   }
-
-          //   if (index < blocks.length - 1) {
-          //     max = this.state.segments[blocks[index + 1].getData().get('id') || blocks[index + 1].getKey()].start;
-          //   }
-
-          //   return { start, end, min, max };
-          // },
         },
       };
     }
@@ -122,65 +95,70 @@ class App extends React.Component {
   }
 
   onTimeUpdate = event => {
-    return;
     const time = this.player.current.currentTime * 1e3;
 
-    const contentState = this.state.editorState.getCurrentContent();
-    // const currentBlockKey = this.state.editorState.getSelection().getStartKey();
+    Object.values(this.state.editorStates).map(editorState => {
+      const contentState = editorState.getCurrentContent();
+      const blocks = contentState.getBlocksAsArray();
+      let playheadBlockIndex = -1;
 
-    // let forceRender = false;
-    let playheadBlockIndex = -1;
-
-    const blocks = contentState.getBlocksAsArray();
-
-    playheadBlockIndex = blocks.findIndex(block => {
-      // const { start, end } = this.state.segments[block.getData().get('id') || block.getKey()];
-      const start = block.getData().get('start');
-      const end = block.getData().get('end');
-      return start <= time && time < end;
-    });
-
-    // console.log(`playheadBlockIndex: ${playheadBlockIndex} @${time}`);
-
-    if (playheadBlockIndex > -1) {
-      const playheadBlock = blocks[playheadBlockIndex];
-      // console.log(`playheadBlock: ${playheadBlock.getKey()} ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].start} - ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].end}`);
-      const playheadEntity = [...new Set(playheadBlock.getCharacterList().toArray().map(character => character.getEntity()))].filter(value => !!value).find((entity) => {
-        const { start, end } = contentState.getEntity(entity).getData();
+      playheadBlockIndex = blocks.findIndex(block => {
+        const start = block.getData().get('start');
+        const end = block.getData().get('end');
         return start <= time && time < end;
       });
+      // console.log(`playheadBlockIndex: ${playheadBlockIndex} @${time}`);
 
-      if (playheadEntity) {
-        const { key } = contentState.getEntity(playheadEntity).getData();
-        // console.log(`playheadBlockKey: ${playheadBlock.getKey()} playheadEntityKey: ${key}`);
-        this.setState({ playheadBlockKey: playheadBlock.getKey(), playheadEntityKey: key });
-      } else {
-        // console.log(`playheadBlockKey: ${playheadBlock.getKey()}`);
-        this.setState({ playheadBlockKey: playheadBlock.getKey() });
+      if (playheadBlockIndex > -1) {
+        const playheadBlock = blocks[playheadBlockIndex];
+        // console.log(`playheadBlock: ${playheadBlock.getKey()} ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].start} - ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].end}`);
+        const playheadEntity = [...new Set(playheadBlock.getCharacterList().toArray().map(character => character.getEntity()))].filter(value => !!value).find((entity) => {
+          const { start, end } = contentState.getEntity(entity).getData();
+          return start <= time && time < end;
+        });
+
+        if (playheadEntity) {
+          const { key } = contentState.getEntity(playheadEntity).getData();
+          // console.log(`playheadBlockKey: ${playheadBlock.getKey()} playheadEntityKey: ${key}`);
+          this.setState({ playheadBlockKey: playheadBlock.getKey(), playheadEntityKey: key });
+        } else {
+          // console.log(`playheadBlockKey: ${playheadBlock.getKey()}`);
+          this.setState({ playheadBlockKey: playheadBlock.getKey() });
+        }
       }
-    }
+    });
   }
 
   onChange = (editorState, editorKey) => {
-    const nextState = produce(this.state.editorState, draftState => {
-      draftState[editorKey] = editorState;
-    });
+    const previewEditorState = EditorState.createWithContent(convertFromRaw({ blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({...block, entityRanges: []})), entityMap: {}}), decorator);
 
-    this.setState({ editorState: nextState });
+    this.setState({
+      editorStates: {...this.state.editorStates, [editorKey]: editorState},
+      previewEditorStates: {...this.state.previewEditorStates, [editorKey]: previewEditorState},
+    });
   }
 
-  renderEditor = editorKey => (
-    <section key={editorKey} data-editor-key={editorKey}>
-      <Editor
-        editorKey={editorKey}
-        stripPastedStyles
-        editorState={this.state.editorState[editorKey]}
-        blockRenderMap={extendedBlockRenderMap}
-        blockRendererFn={this.customBlockRenderer}
-        onChange={editorState => this.onChange(editorState, editorKey)}
-      />
-    </section>
-  );
+  renderEditor = editorKey => {
+    return (
+      <section key={`s-${editorKey}`} data-editor-key={editorKey}>
+        <VisibilitySensor key={`vs-${editorKey}`} intervalCheck={false} scrollCheck={true} partialVisibility={true}>
+          {
+            ({ isVisible }) => {
+              console.log(editorKey, isVisible);
+              return (<Editor
+                editorKey={editorKey}
+                readOnly={!isVisible}
+                stripPastedStyles
+                editorState={isVisible ? this.state.editorStates[editorKey] : this.state.previewEditorStates[editorKey]}
+                blockRendererFn={this.customBlockRenderer}
+                onChange={editorState => this.onChange(editorState, editorKey)}
+              />);
+            }
+          }
+        </VisibilitySensor>
+      </section>
+    );
+  }
 
   render() {
     return (
@@ -201,7 +179,7 @@ class App extends React.Component {
           { `div[data-offset-key="${this.state.playheadBlockKey}-0-0"] ~ div > .WrapperBlock > div[data-offset-key] > span { color: #696969; }` }
           { `span[data-entity-key="${this.state.playheadEntityKey}"] ~ span[data-entity-key] { color: #696969; }` }
         </style>
-        {Object.keys(this.state.editorState).map(key => this.renderEditor(key))}
+        {Object.keys(this.state.editorStates).map(key => this.renderEditor(key))}
         </div>
       </article>
     );

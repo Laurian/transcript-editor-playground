@@ -7945,7 +7945,7 @@ react-dev-utils@^9.0.1:
     strip-ansi "5.2.0"
     text-table "0.2.0"
 
-react-dom@^16.8.6:
+react-dom@^16.6.3, react-dom@^16.8.6:
   version "16.8.6"
   resolved "https://registry.yarnpkg.com/react-dom/-/react-dom-16.8.6.tgz#71d6303f631e8b0097f56165ef608f051ff6e10f"
   integrity sha512-1nL7PIq9LTL3fthPqwkvr2zY7phIPjYrT0jp4HjyEQrEROnw4dG41VVwi/wfoCneoleqrNX7iAD+pXebJZwrwA==
@@ -8025,7 +8025,23 @@ react-scripts@3.0.1:
   optionalDependencies:
     fsevents "2.0.6"
 
-react@^16.8.6:
+react-time-slicer@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/react-time-slicer/-/react-time-slicer-1.0.1.tgz#7ce39ecfafd817fda29b56de74d1026143a3d49f"
+  integrity sha512-fM59NYEEJO1pkVahTT2QaAVrWUr2CgHTJH4twkIXcqZklUdrIvNCl6rnj0F4MpqYCN+7klkP78WEupFlg8Kuiw==
+  dependencies:
+    prop-types "^15.6.2"
+    react "^16.6.3"
+    react-dom "^16.6.3"
+
+react-visibility-sensor@^5.0.2:
+  version "5.0.2"
+  resolved "https://registry.yarnpkg.com/react-visibility-sensor/-/react-visibility-sensor-5.0.2.tgz#e360fff81572cb3a2a9fd680484447a9da09a55d"
+  integrity sha512-7+1lr7oQOO2vKr5u/uxoDGFWAAy7lsDy2aJU3Zy1/OymI+TRqOBk8m2L8YE1B0UyfCDWxVAWO+aifVGqNOvqeQ==
+  dependencies:
+    prop-types "^15.6.2"
+
+react@^16.6.3, react@^16.8.6:
   version "16.8.6"
   resolved "https://registry.yarnpkg.com/react/-/react-16.8.6.tgz#ad6c3a9614fd3a4e9ef51117f54d888da01f2bbe"
   integrity sha512-pC0uMkhLaHm11ZSJULfOBqV4tIZkx87ZLvbbQYunNixAAvjnC+snJCg0XQXn9VIsttVsbZP/H/ewzgsd5fxKXw==
