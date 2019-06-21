@@ -7,7 +7,8 @@ body {
   color: #222;
   max-width: 1400px;
 
-  font-family: 'PT Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family: 'PT Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
+    'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -16,15 +17,20 @@ article {
   padding: 5rem 0rem;
 }
 
-footer, small, .speaker {
-  font-family: 'PT Sans Narrow', -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+footer,
+small,
+.speaker {
+  font-family: 'PT Sans Narrow', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
 }
 
-code, .public-DraftStyleDefault-block {
-  font-family: 'PT Mono', Consolas, "Liberation Mono", Menlo, Courier, monospace;
+code,
+.public-DraftStyleDefault-block {
+  font-family: 'PT Mono', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 }
 
-p, .public-DraftStyleDefault-block {
+p,
+.public-DraftStyleDefault-block {
   width: 40em;
   vertical-align: baseline;
 }
