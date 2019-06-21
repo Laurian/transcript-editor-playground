@@ -1,13 +1,30 @@
 body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
+  width: 87.5%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 12.5%;
+  background-color: #fafafa;
+  color: #222;
+  max-width: 1400px;
+
+  font-family: 'PT Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
-    monospace;
+article {
+  padding: 5rem 0rem;
+}
+
+footer, small, .speaker {
+  font-family: 'PT Sans Narrow', -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+}
+
+code, .public-DraftStyleDefault-block {
+  font-family: 'PT Mono', Consolas, "Liberation Mono", Menlo, Courier, monospace;
+}
+
+p, .public-DraftStyleDefault-block {
+  width: 40em;
+  vertical-align: baseline;
 }

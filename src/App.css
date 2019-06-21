@@ -1,0 +1,12 @@
+.WrapperBlock {
+  margin-bottom: 1em;
+}
+
+.speaker {
+  user-select: none;
+}
+
+audio {
+  width: 40em;
+  margin-bottom: 1em;
+}
