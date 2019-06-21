@@ -1,25 +1,17 @@
 import React from 'react';
-import Draft, { Editor, EditorState, CompositeDecorator, convertFromRaw, convertToRaw, getDefaultKeyBinding, Modifier } from 'draft-js';
+import Draft, { Editor, EditorBlock, EditorState, CompositeDecorator, convertFromRaw, convertToRaw, getDefaultKeyBinding, Modifier } from 'draft-js';
 import chunk from 'lodash.chunk';
 import VisibilitySensor from 'react-visibility-sensor';
-
-
-import WrapperBlock from './WrapperBlock';
-import Token from './Token';
 
 import './App.css';
 
 const flatten = list => list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
-
 const getEntityStrategy = mutability => (contentBlock, callback, contentState) => {
   contentBlock.findEntityRanges(
-    (character) => {
+    character => {
       const entityKey = character.getEntity();
-      if (entityKey === null) {
-        return false;
-      }
-      return contentState.getEntity(entityKey).getMutability() === mutability;
+      return entityKey && contentState.getEntity(entityKey).getMutability() === mutability;
     },
     callback,
   );
@@ -28,7 +20,18 @@ const getEntityStrategy = mutability => (contentBlock, callback, contentState) =
 const decorator = new CompositeDecorator([
   {
     strategy: getEntityStrategy('MUTABLE'),
-    component: Token,
+    component: ({ entityKey, contentState, children }) => {
+      const data = entityKey ? contentState.getEntity(entityKey).getData() : {};
+      return (
+        <span
+        data-start={data.start}
+        data-entity-key={data.key}
+        className="Token"
+      >
+        { children }
+      </span>
+      );
+    },
   },
 ]);
 
@@ -70,8 +73,19 @@ class App extends React.Component {
     const type = contentBlock.getType();
     if (type === 'paragraph') {
       return {
-        component: WrapperBlock,
+        component: props => {
+          const { block } = props;
+          const speaker = block.getData().get('speaker') || '';
+
+          return (
+            <div className="WrapperBlock">
+              <div contentEditable={false} className="speaker">{speaker}:</div>
+              <EditorBlock {...props} />
+            </div>
+          );
+        },
         props: {
+          // TODO
         },
       };
     }
@@ -97,7 +111,7 @@ class App extends React.Component {
   onTimeUpdate = event => {
     const time = this.player.current.currentTime * 1e3;
 
-    Object.values(this.state.editorStates).map(editorState => {
+    Object.entries(this.state.editorStates).forEach(([editorKey, editorState]) => {
       const contentState = editorState.getCurrentContent();
       const blocks = contentState.getBlocksAsArray();
       let playheadBlockIndex = -1;
@@ -107,11 +121,9 @@ class App extends React.Component {
         const end = block.getData().get('end');
         return start <= time && time < end;
       });
-      // console.log(`playheadBlockIndex: ${playheadBlockIndex} @${time}`);
 
       if (playheadBlockIndex > -1) {
         const playheadBlock = blocks[playheadBlockIndex];
-        // console.log(`playheadBlock: ${playheadBlock.getKey()} ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].start} - ${this.state.segments[playheadBlock.getData().get('id') || playheadBlock.getKey()].end}`);
         const playheadEntity = [...new Set(playheadBlock.getCharacterList().toArray().map(character => character.getEntity()))].filter(value => !!value).find((entity) => {
           const { start, end } = contentState.getEntity(entity).getData();
           return start <= time && time < end;
@@ -119,11 +131,9 @@ class App extends React.Component {
 
         if (playheadEntity) {
           const { key } = contentState.getEntity(playheadEntity).getData();
-          // console.log(`playheadBlockKey: ${playheadBlock.getKey()} playheadEntityKey: ${key}`);
-          this.setState({ playheadBlockKey: playheadBlock.getKey(), playheadEntityKey: key });
+          this.setState({ playheadEditorKey: editorKey, playheadBlockKey: playheadBlock.getKey(), playheadEntityKey: key });
         } else {
-          // console.log(`playheadBlockKey: ${playheadBlock.getKey()}`);
-          this.setState({ playheadBlockKey: playheadBlock.getKey() });
+          this.setState({ playheadEditorKey: editorKey, playheadBlockKey: playheadBlock.getKey() });
         }
       }
     });
@@ -143,17 +153,16 @@ class App extends React.Component {
       <section key={`s-${editorKey}`} data-editor-key={editorKey}>
         <VisibilitySensor key={`vs-${editorKey}`} intervalCheck={false} scrollCheck={true} partialVisibility={true}>
           {
-            ({ isVisible }) => {
-              console.log(editorKey, isVisible);
-              return (<Editor
+            ({ isVisible }) => (
+              <Editor
                 editorKey={editorKey}
                 readOnly={!isVisible}
                 stripPastedStyles
                 editorState={isVisible ? this.state.editorStates[editorKey] : this.state.previewEditorStates[editorKey]}
                 blockRendererFn={this.customBlockRenderer}
                 onChange={editorState => this.onChange(editorState, editorKey)}
-              />);
-            }
+              />
+            )
           }
         </VisibilitySensor>
       </section>
@@ -175,6 +184,7 @@ class App extends React.Component {
         </audio>
         <div onClick={event => this.handleClick(event)}>
         <style scoped>
+          { `section[data-editor-key="${this.state.playheadEditorKey}"] ~ section .WrapperBlock > div[data-offset-key] > span { color: #696969 }` }
           { `div[data-offset-key="${this.state.currentBlockKey}-0-0"] > .WrapperBlock > div[data-offset-key] > span { color: black; }` }
           { `div[data-offset-key="${this.state.playheadBlockKey}-0-0"] ~ div > .WrapperBlock > div[data-offset-key] > span { color: #696969; }` }
           { `span[data-entity-key="${this.state.playheadEntityKey}"] ~ span[data-entity-key] { color: #696969; }` }
@@ -188,5 +198,3 @@ class App extends React.Component {
 
 
 export default App;
-
-
