@@ -47,52 +47,52 @@ class App extends React.Component {
   static getDerivedStateFromProps(props, state) {
     const { transcript } = props;
     if (transcript && !state.editorStates) {
-      const editorStates = chunk(transcript.segments, 5)
-        .map(segments => {
-          const blocks = segments.map(({ text, start, end, speaker, id, words }, index) => ({
+      const editorStatesArray = chunk(transcript.segments, 5).map(segments => {
+        const blocks = segments.map(({ text, start, end, speaker, id, words }, index) => ({
+          text,
+          key: id,
+          type: 'paragraph',
+          data: { start, end, speaker, id },
+          entityRanges: words.map(({ start, end, text, offset, length, id }) => ({
+            start,
+            end,
             text,
+            offset,
+            length,
             key: id,
-            type: 'paragraph',
-            data: { start, end, speaker, id },
-            entityRanges: words.map(({ start, end, text, offset, length, id }) => ({
-              start,
-              end,
-              text,
-              offset,
-              length,
-              key: id,
+          })),
+          inlineStyleRanges: [],
+        }));
+
+        const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
+          (acc, data) => ({
+            ...acc,
+            [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
+          }),
+          {}
+        );
+
+        return EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator);
+      });
+      const editorStates = editorStatesArray.reduce((acc, s, i) => ({ ...acc, [`editor-${i}`]: s }), {});
+
+      const previewEditorStatesArray = Object.values(editorStates).map(editorState =>
+        EditorState.createWithContent(
+          convertFromRaw({
+            blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({
+              ...block,
+              entityRanges: [],
             })),
-            inlineStyleRanges: [],
-          }));
-
-          const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
-            (acc, data) => ({
-              ...acc,
-              [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
-            }),
-            {}
-          );
-
-          return EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator);
-        })
-        .reduce((acc, s, i) => ({ ...acc, [`editor-${i}`]: s }), {});
-
-      const previewEditorStates = Object.values(editorStates)
-        .map(editorState =>
-          EditorState.createWithContent(
-            convertFromRaw({
-              blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({
-                ...block,
-                entityRanges: [],
-              })),
-              entityMap: {},
-            }),
-            decorator
-          )
+            entityMap: {},
+          }),
+          decorator
         )
-        .reduce((acc, s, i) => ({ ...acc, [`editor-${i}`]: s }), {});
+      );
+      const previewEditorStates = previewEditorStatesArray.reduce((acc, s, i) => ({ ...acc, [`editor-${i}`]: s }), {});
 
-      return { editorStates, previewEditorStates };
+      const editors = editorStatesArray.map((s, i) => `editor-${i}`);
+
+      return { editorStates, previewEditorStates, editors };
     }
   }
 
@@ -237,7 +237,7 @@ class App extends React.Component {
             {`div[data-offset-key="${this.state.playheadBlockKey}-0-0"] ~ div > .WrapperBlock > div[data-offset-key] > span { color: #696969; }`}
             {`span[data-entity-key="${this.state.playheadEntityKey}"] ~ span[data-entity-key] { color: #696969; }`}
           </style>
-          {Object.keys(this.state.editorStates).map(key => this.renderEditor(key))}
+          {this.state.editors.map(key => this.renderEditor(key))}
         </div>
       </article>
     );
