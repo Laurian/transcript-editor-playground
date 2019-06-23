@@ -8,6 +8,7 @@ import Draft, {
   convertToRaw,
   getDefaultKeyBinding,
   Modifier,
+  RichUtils
 } from 'draft-js';
 import chunk from 'lodash.chunk';
 import VisibilitySensor from 'react-visibility-sensor';
@@ -37,17 +38,50 @@ const decorator = new CompositeDecorator([
   },
 ]);
 
+const colorStyleMap = {
+  red: {
+    backgroundColor: 'rgba(255, 0, 0, .2)',
+  },
+  orange: {
+    color: 'rgba(255, 127, 0, 1.0)',
+  },
+  yellow: {
+    color: 'rgba(180, 180, 0, 1.0)',
+  },
+  green: {
+    backgroundColor: 'rgba(0, 180, 0, .2)',
+  },
+  blue: {
+    color: 'rgba(0, 0, 255, 1.0)',
+  },
+  indigo: {
+    color: 'rgba(75, 0, 130, 1.0)',
+  },
+  violet: {
+    color: 'rgba(127, 0, 255, 1.0)',
+  },
+};
+
+const createPreview = editorState => EditorState.createWithContent(
+  convertFromRaw({
+    blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({ ...block, entityRanges: [] })),
+    entityMap: {},
+  }),
+  decorator
+);
+
 class App extends React.Component {
   state = {
     readOnly: false,
+    // editors: [],
   };
 
   player = React.createRef();
 
   static getDerivedStateFromProps(props, state) {
     const { transcript } = props;
-    if (transcript && !state.editorStates) {
-      const editorStatesArray = chunk(transcript.segments, 5).map(segments => {
+    if (transcript && !state.editors) {
+      const editors = chunk(transcript.segments, 5).map(segments => {
         const blocks = segments.map(({ text, start, end, speaker, id, words }, index) => ({
           text,
           key: id,
@@ -61,7 +95,23 @@ class App extends React.Component {
             length,
             key: id,
           })),
-          inlineStyleRanges: [],
+          inlineStyleRanges: [
+            {
+              length: 15,
+              offset: 5,
+              style: 'green',
+            },
+            {
+              length: 15,
+              offset: 10,
+              style: 'red',
+            },
+            {
+              length: 5,
+              offset: 7,
+              style: 'blue',
+            },
+          ],
         }));
 
         const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
@@ -72,27 +122,11 @@ class App extends React.Component {
           {}
         );
 
-        return EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator);
+        const editorState = EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator);
+        return { editorState, key: `editor-${blocks[0].key}`, previewState: createPreview(editorState) };
       });
-      const editorStates = editorStatesArray.reduce((acc, s, i) => ({ ...acc, [`editor-${i}`]: s }), {});
 
-      const previewEditorStatesArray = Object.values(editorStates).map(editorState =>
-        EditorState.createWithContent(
-          convertFromRaw({
-            blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({
-              ...block,
-              entityRanges: [],
-            })),
-            entityMap: {},
-          }),
-          decorator
-        )
-      );
-      const previewEditorStates = previewEditorStatesArray.reduce((acc, s, i) => ({ ...acc, [`editor-${i}`]: s }), {});
-
-      const editors = editorStatesArray.map((s, i) => `editor-${i}`);
-
-      return { editorStates, previewEditorStates, editors };
+      return { editors };
     }
   }
 
@@ -144,7 +178,7 @@ class App extends React.Component {
   onTimeUpdate = event => {
     const time = this.player.current.currentTime * 1e3;
 
-    Object.entries(this.state.editorStates).forEach(([editorKey, editorState]) => {
+    this.state.editors.forEach(({editorState, key}) => {
       const contentState = editorState.getCurrentContent();
       const blocks = contentState.getBlocksAsArray();
       let playheadBlockIndex = -1;
@@ -174,44 +208,119 @@ class App extends React.Component {
         if (playheadEntity) {
           const { key } = contentState.getEntity(playheadEntity).getData();
           this.setState({
-            playheadEditorKey: editorKey,
+            playheadEditorKey: key,
             playheadBlockKey: playheadBlock.getKey(),
             playheadEntityKey: key,
           });
         } else {
-          this.setState({ playheadEditorKey: editorKey, playheadBlockKey: playheadBlock.getKey() });
+          this.setState({ playheadEditorKey: key, playheadBlockKey: playheadBlock.getKey() });
         }
       }
     });
   };
 
-  onChange = (editorState, editorKey) => {
-    const previewEditorState = EditorState.createWithContent(
-      convertFromRaw({
-        blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({ ...block, entityRanges: [] })),
-        entityMap: {},
-      }),
-      decorator
-    );
+  onChange = (editorState, key) => {
+    const editorIndex = this.state.editors.findIndex(s => s.key === key);
+    const contentState = editorState.getCurrentContent();
+    const contentChange = contentState === this.state.editors[editorIndex].editorState.getCurrentContent() ? null : editorState.getLastChangeType();
+    console.log(contentChange);
 
-    this.setState({
-      editorStates: { ...this.state.editorStates, [editorKey]: editorState },
-      previewEditorStates: { ...this.state.previewEditorStates, [editorKey]: previewEditorState },
-    });
+    const currentBlockKey = editorState.getSelection().getStartKey();
+    console.log(currentBlockKey);
+
+    const blocks = editorState.getCurrentContent().getBlocksAsArray();
+    const currentBlockIndex = blocks.findIndex(block => block.getKey() === currentBlockKey);
+    console.log(currentBlockIndex);
+
+    if (currentBlockIndex === blocks.length - 1 && editorIndex < this.state.editors.length - 1) {
+      const editorState0 = editorState;
+      const editorState1 = this.state.editors[editorIndex + 1].editorState;
+
+      const raw0 = convertToRaw(editorState0.getCurrentContent());
+      const raw1 = convertToRaw(editorState1.getCurrentContent());
+
+      const blocks0 = raw0.blocks.map(block => ({ ...block, entityRanges: block.entityRanges.map(range => raw0.entityMap[range.key].data) }));
+      const blocks1 = raw1.blocks.map(block => ({ ...block, entityRanges: block.entityRanges.map(range => raw1.entityMap[range.key].data) }));
+
+      const blocksA = blocks0.concat(blocks1);
+
+      const entityMapA = flatten(blocksA.map(block => block.entityRanges)).reduce(
+        (acc, data) => ({
+          ...acc,
+          [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
+        }),
+        {}
+      );
+
+      const editorStateA = EditorState.createWithContent(convertFromRaw({
+        blocks: blocksA,
+        entityMap: entityMapA,
+      }), decorator);
+
+      this.setState({
+        editors: [
+          ...this.state.editors.slice(0, editorIndex),
+          { editorState: editorStateA, key, previewState: createPreview(editorState) },
+          ...this.state.editors.slice(editorIndex + 2),
+        ],
+      });
+    } else {
+      this.setState({
+        editors: [
+          ...this.state.editors.slice(0, editorIndex),
+          { editorState, key, previewState: createPreview(editorState) },
+          ...this.state.editors.slice(editorIndex + 1),
+        ],
+      });
+    }
   };
 
-  renderEditor = editorKey => {
+  // handleJoin = () => {
+  //   console.log('join');
+  //
+  //   const s0 = convertToRaw(this.state.editors['editor-0'].getCurrentContent());
+  //   const s1 = convertToRaw(this.state.editors['editor-1'].getCurrentContent());
+  //
+  //   // console.log(s0, s1);
+  //
+  //   const entityMap0 = s0.entityMap;
+  //   const blocks0 = s0.blocks.map(b => ({ ...b, entityRanges: b.entityRanges.map(r => entityMap0[r.key].data) }));
+  //
+  //   const entityMap1 = s1.entityMap;
+  //   const blocks1 = s1.blocks.map(b => ({ ...b, entityRanges: b.entityRanges.map(r => entityMap1[r.key].data) }));
+  //
+  //   const blocks = blocks0.concat(blocks1);
+  //   const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
+  //     (acc, data) => ({
+  //       ...acc,
+  //       [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
+  //     }),
+  //     {}
+  //   );
+  //
+  //   const raw = {
+  //     blocks,
+  //     entityMap,
+  //   };
+  //   // console.log(raw);
+  //
+  //   this.onChange(EditorState.createEmpty(), 'editor-1');
+  //   // this.onChange(EditorState.createWithContent(convertFromRaw(raw), decorator), 'editor-0');
+  // };
+
+  renderEditor = ({editorState, key, previewState}) => {
     return (
-      <section key={`s-${editorKey}`} data-editor-key={editorKey}>
-        <VisibilitySensor key={`vs-${editorKey}`} intervalCheck={false} scrollCheck={true} partialVisibility={true}>
+      <section key={`s-${key}`} data-editor-key={key}>
+        <VisibilitySensor key={`vs-${key}`} intervalCheck={false} scrollCheck={true} partialVisibility={true}>
           {({ isVisible }) => (
             <Editor
-              editorKey={editorKey}
+              editorKey={key}
               readOnly={!isVisible}
               stripPastedStyles
-              editorState={isVisible ? this.state.editorStates[editorKey] : this.state.previewEditorStates[editorKey]}
+              editorState={isVisible ? editorState : previewState }
               blockRendererFn={this.customBlockRenderer}
-              onChange={editorState => this.onChange(editorState, editorKey)}
+              customStyleMap={colorStyleMap}
+              onChange={editorState => this.onChange(editorState, key)}
             />
           )}
         </VisibilitySensor>
@@ -237,7 +346,7 @@ class App extends React.Component {
             {`div[data-offset-key="${this.state.playheadBlockKey}-0-0"] ~ div > .WrapperBlock > div[data-offset-key] > span { color: #696969; }`}
             {`span[data-entity-key="${this.state.playheadEntityKey}"] ~ span[data-entity-key] { color: #696969; }`}
           </style>
-          {this.state.editors.map(key => this.renderEditor(key))}
+          {this.state.editors.map((editorState, index) => this.renderEditor(editorState))}
         </div>
       </article>
     );
