@@ -1,5 +1,5 @@
 import React from 'react';
-import Draft, {
+import {
   Editor,
   EditorBlock,
   EditorState,
@@ -63,25 +63,33 @@ const colorStyleMap = {
 };
 
 const createPreview = editorState =>
-  EditorState.createWithContent(
-    convertFromRaw({
-      blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({
-        ...block,
-        entityRanges: [],
-        inlineStyleRanges: [],
-      })),
-      entityMap: {},
-    }),
-    decorator
+  EditorState.set(
+    EditorState.createWithContent(
+      convertFromRaw({
+        blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({
+          ...block,
+          entityRanges: [],
+          inlineStyleRanges: [],
+        })),
+        entityMap: {},
+      }),
+      decorator
+    ),
+    { allowUndo: false }
   );
 
 class App extends React.Component {
   state = {
     readOnly: false,
+    past: [],
     // editors: [],
+    future: [],
   };
 
   player = React.createRef();
+
+  editorRefs = {};
+  setDomEditorRef = (key, ref) => (this.editorRefs[key] = ref);
 
   static getDerivedStateFromProps(props, state) {
     const { transcript } = props;
@@ -127,7 +135,10 @@ class App extends React.Component {
           {}
         );
 
-        const editorState = EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator);
+        const editorState = EditorState.set(
+          EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator),
+          { allowUndo: false }
+        );
         return { editorState, key: `editor-${blocks[0].key}`, previewState: createPreview(editorState) };
       });
 
@@ -227,8 +238,11 @@ class App extends React.Component {
   onChange = (editorState, key) => {
     const editorIndex = this.state.editors.findIndex(editor => editor.key === key);
 
-    // const contentChange = editorState.getCurrentContent() === this.state.editors[editorIndex].editorState.getCurrentContent() ? null : editorState.getLastChangeType();
-    // console.log(contentChange);
+    const contentChange =
+      editorState.getCurrentContent() === this.state.editors[editorIndex].editorState.getCurrentContent()
+        ? null
+        : editorState.getLastChangeType();
+    console.log(contentChange);
 
     const blockKey = editorState.getSelection().getStartKey();
 
@@ -236,22 +250,86 @@ class App extends React.Component {
     const blockIndex = blocks.findIndex(block => block.getKey() === blockKey);
     console.log(blockIndex);
 
-    if (blockIndex === blocks.length - 1 && editorIndex < this.state.editors.length - 1) {
+    if (!contentChange && blockIndex === blocks.length - 1 && editorIndex < this.state.editors.length - 1) {
       const editorStateA = editorState;
       const editorStateB = this.state.editors[editorIndex + 1].editorState;
 
-      const { blocks: blocksA, entityMap: entityMapA } = convertToRaw(editorStateA.getCurrentContent());
-      const { blocks: blocksB, entityMap: entityMapB } = convertToRaw(editorStateB.getCurrentContent());
+      const blocksA = editorStateA
+        .getCurrentContent()
+        .getBlockMap()
+        .toArray();
+      const blocksB = editorStateB
+        .getCurrentContent()
+        .getBlockMap()
+        .toArray();
 
       const blocks = [
-        ...blocksA.map(block => ({
-          ...block,
-          entityRanges: block.entityRanges.map(({ key }) => entityMapA[key].data),
-        })),
-        ...blocksB.map(block => ({
-          ...block,
-          entityRanges: block.entityRanges.map(({ key }) => entityMapB[key].data),
-        })),
+        ...blocksA.map(block => {
+          const key = block.getKey();
+          const type = block.getType();
+          const text = block.getText();
+          const data = block.getData();
+
+          const entityRanges = [];
+          block.findEntityRanges(
+            character => !!character.getEntity(),
+            (start, end) =>
+              entityRanges.push({
+                offset: start,
+                length: end - start,
+              })
+          );
+
+          return {
+            key,
+            type,
+            text,
+            data,
+            entityRanges: entityRanges.map(({ offset, length }) => {
+              const entityKey = block.getEntityAt(offset);
+              const entity = editorStateA.getCurrentContent().getEntity(entityKey);
+              return {
+                ...entity.getData(),
+                offset,
+                length,
+              };
+            }),
+            inlineStyleRanges: [],
+          };
+        }),
+        ...blocksB.map(block => {
+          const key = block.getKey();
+          const type = block.getType();
+          const text = block.getText();
+          const data = block.getData();
+
+          const entityRanges = [];
+          block.findEntityRanges(
+            character => !!character.getEntity(),
+            (start, end) =>
+              entityRanges.push({
+                offset: start,
+                length: end - start,
+              })
+          );
+
+          return {
+            key,
+            type,
+            text,
+            data,
+            entityRanges: entityRanges.map(({ offset, length }) => {
+              const entityKey = block.getEntityAt(offset);
+              const entity = editorStateB.getCurrentContent().getEntity(entityKey);
+              return {
+                ...entity.getData(),
+                offset,
+                length,
+              };
+            }),
+            inlineStyleRanges: [],
+          };
+        }),
       ];
 
       const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
@@ -262,22 +340,64 @@ class App extends React.Component {
         {}
       );
 
-      const editorStateAB = EditorState.createWithContent(
-        convertFromRaw({
-          blocks,
-          entityMap,
-        }),
-        decorator
+      // const editorStateAB = EditorState.createWithContent(
+      //   convertFromRaw({
+      //     blocks,
+      //     entityMap,
+      //   }),
+      //   decorator
+      // );
+
+      const editorStateAB = EditorState.set(
+        EditorState.createWithContent(
+          convertFromRaw({
+            blocks,
+            entityMap,
+          }),
+          decorator
+        ),
+        {
+          selection: editorStateA.getSelection(),
+          // undoStack: editorStateA.getUndoStack(),
+          // redoStack: editorStateA.getRedoStack(),
+          lastChangeType: editorStateA.getLastChangeType(),
+          allowUndo: false,
+        }
       );
 
+      // const editorStateNoUndo = EditorState.set(editorStateA, { allowUndo: false });
+      // const editorState2 = EditorState.push(
+      //   editorStateNoUndo,
+      //   convertFromRaw({
+      //     blocks,
+      //     entityMap,
+      //   }),
+      //   'insert-fragment'
+      // );
+      // const editorStateAllowUndo = EditorState.set(editorState2, { allowUndo: true });
+      // const editorStateAB = EditorState.forceSelection(editorStateAllowUndo, editorStateA.getSelection());
+
       this.setState({
+        past: [...this.state.past, this.state.editors],
+        future: [],
         editors: [
           ...this.state.editors.slice(0, editorIndex),
           { editorState: editorStateAB, key, previewState: createPreview(editorStateAB) },
           ...this.state.editors.slice(editorIndex + 2),
         ],
       });
+    } else if (contentChange) {
+      this.setState({
+        past: [...this.state.past, this.state.editors],
+        future: [],
+        editors: [
+          ...this.state.editors.slice(0, editorIndex),
+          { editorState, key, previewState: createPreview(editorState) },
+          ...this.state.editors.slice(editorIndex + 1),
+        ],
+      });
     } else {
+      // console.log(editorState.getSelection());
       this.setState({
         editors: [
           ...this.state.editors.slice(0, editorIndex),
@@ -288,9 +408,47 @@ class App extends React.Component {
     }
   };
 
+  handleUndo = () => {
+    const { past, editors: present, future } = this.state;
+
+    const futurePast = past.slice(0);
+    const futurePresent = futurePast.pop();
+
+    if (futurePresent) {
+      this.setState({
+        past: futurePast,
+        editors: futurePresent,
+        future: [present, ...future],
+      });
+    }
+  };
+
+  handleRedo = () => {
+    const { past, editors: present, future } = this.state;
+
+    const futureFuture = future.slice(0);
+    const futurePresent = futureFuture.pop();
+
+    if (futurePresent) {
+      this.setState({
+        past: [...past, present],
+        editors: futurePresent,
+        future: futureFuture,
+      });
+    }
+  };
+
+  handleFocus = (key, event) => {
+    console.log(event.nativeEvent);
+    // this.editorRefs[key].focus();
+    // Object.keys(this.editorRefs)
+    //   .filter(k => k !== key)
+    //   .forEach(k => this.editorRefs[k].blur());
+  };
+
   renderEditor = ({ editorState, key, previewState }) => {
     return (
-      <section key={`s-${key}`} data-editor-key={key}>
+      <section key={`s-${key}`} data-editor-key={key} onClick={event => this.handleFocus(key, event)}>
         <VisibilitySensor key={`vs-${key}`} intervalCheck={false} scrollCheck={true} partialVisibility={true}>
           {({ isVisible }) => (
             <Editor
@@ -301,6 +459,8 @@ class App extends React.Component {
               blockRendererFn={this.customBlockRenderer}
               customStyleMap={colorStyleMap}
               onChange={editorState => this.onChange(editorState, key)}
+              ref={ref => this.setDomEditorRef(key, ref)}
+              onFocus={e => console.log(e.nativeEvent)}
             />
           )}
         </VisibilitySensor>
@@ -319,6 +479,12 @@ class App extends React.Component {
           ref={this.player}
           src="https://m-nc9x4fbvxfm4jhb9.s3.amazonaws.com/566f3519e358eb0b2163b15e/9282246788451/e90f9f80-70e4-4de4-8670-54ed115b95bd/9aM-W2buTmSXNHOpDZnQ-Q.m4a"
         ></audio>
+
+        <div className="buttons">
+          <button onClick={event => this.handleUndo(event)}>undo</button>
+          <button onClick={event => this.handleRedo(event)}>redo</button>
+        </div>
+
         <div onClick={event => this.handleClick(event)}>
           <style scoped>
             {`section[data-editor-key="${this.state.playheadEditorKey}"] ~ section .WrapperBlock > div[data-offset-key] > span { color: #696969 }`}
