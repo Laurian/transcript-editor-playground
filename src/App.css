@@ -11,7 +11,14 @@ audio {
   margin-bottom: 1em;
 }
 
+section[data-editor-key] {
+  position: relative;
+}
+
 section[data-editor-key]::before {
+  position: absolute;
+  top: -5px;
+  font-size: 7px;
   content: attr(data-editor-key);
   color: red;
 }

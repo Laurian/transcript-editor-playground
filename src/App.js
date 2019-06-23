@@ -8,7 +8,7 @@ import Draft, {
   convertToRaw,
   getDefaultKeyBinding,
   Modifier,
-  RichUtils
+  RichUtils,
 } from 'draft-js';
 import chunk from 'lodash.chunk';
 import VisibilitySensor from 'react-visibility-sensor';
@@ -62,13 +62,18 @@ const colorStyleMap = {
   },
 };
 
-const createPreview = editorState => EditorState.createWithContent(
-  convertFromRaw({
-    blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({ ...block, entityRanges: [] })),
-    entityMap: {},
-  }),
-  decorator
-);
+const createPreview = editorState =>
+  EditorState.createWithContent(
+    convertFromRaw({
+      blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({
+        ...block,
+        entityRanges: [],
+        inlineStyleRanges: [],
+      })),
+      entityMap: {},
+    }),
+    decorator
+  );
 
 class App extends React.Component {
   state = {
@@ -178,7 +183,7 @@ class App extends React.Component {
   onTimeUpdate = event => {
     const time = this.player.current.currentTime * 1e3;
 
-    this.state.editors.forEach(({editorState, key}) => {
+    this.state.editors.forEach(({ editorState, key }) => {
       const contentState = editorState.getCurrentContent();
       const blocks = contentState.getBlocksAsArray();
       let playheadBlockIndex = -1;
@@ -220,31 +225,36 @@ class App extends React.Component {
   };
 
   onChange = (editorState, key) => {
-    const editorIndex = this.state.editors.findIndex(s => s.key === key);
-    const contentState = editorState.getCurrentContent();
-    const contentChange = contentState === this.state.editors[editorIndex].editorState.getCurrentContent() ? null : editorState.getLastChangeType();
-    console.log(contentChange);
+    const editorIndex = this.state.editors.findIndex(editor => editor.key === key);
 
-    const currentBlockKey = editorState.getSelection().getStartKey();
-    console.log(currentBlockKey);
+    // const contentChange = editorState.getCurrentContent() === this.state.editors[editorIndex].editorState.getCurrentContent() ? null : editorState.getLastChangeType();
+    // console.log(contentChange);
+
+    const blockKey = editorState.getSelection().getStartKey();
 
     const blocks = editorState.getCurrentContent().getBlocksAsArray();
-    const currentBlockIndex = blocks.findIndex(block => block.getKey() === currentBlockKey);
-    console.log(currentBlockIndex);
+    const blockIndex = blocks.findIndex(block => block.getKey() === blockKey);
+    console.log(blockIndex);
 
-    if (currentBlockIndex === blocks.length - 1 && editorIndex < this.state.editors.length - 1) {
-      const editorState0 = editorState;
-      const editorState1 = this.state.editors[editorIndex + 1].editorState;
+    if (blockIndex === blocks.length - 1 && editorIndex < this.state.editors.length - 1) {
+      const editorStateA = editorState;
+      const editorStateB = this.state.editors[editorIndex + 1].editorState;
 
-      const raw0 = convertToRaw(editorState0.getCurrentContent());
-      const raw1 = convertToRaw(editorState1.getCurrentContent());
+      const { blocks: blocksA, entityMap: entityMapA } = convertToRaw(editorStateA.getCurrentContent());
+      const { blocks: blocksB, entityMap: entityMapB } = convertToRaw(editorStateB.getCurrentContent());
 
-      const blocks0 = raw0.blocks.map(block => ({ ...block, entityRanges: block.entityRanges.map(range => raw0.entityMap[range.key].data) }));
-      const blocks1 = raw1.blocks.map(block => ({ ...block, entityRanges: block.entityRanges.map(range => raw1.entityMap[range.key].data) }));
+      const blocks = [
+        ...blocksA.map(block => ({
+          ...block,
+          entityRanges: block.entityRanges.map(({ key }) => entityMapA[key].data),
+        })),
+        ...blocksB.map(block => ({
+          ...block,
+          entityRanges: block.entityRanges.map(({ key }) => entityMapB[key].data),
+        })),
+      ];
 
-      const blocksA = blocks0.concat(blocks1);
-
-      const entityMapA = flatten(blocksA.map(block => block.entityRanges)).reduce(
+      const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
         (acc, data) => ({
           ...acc,
           [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
@@ -252,15 +262,18 @@ class App extends React.Component {
         {}
       );
 
-      const editorStateA = EditorState.createWithContent(convertFromRaw({
-        blocks: blocksA,
-        entityMap: entityMapA,
-      }), decorator);
+      const editorStateAB = EditorState.createWithContent(
+        convertFromRaw({
+          blocks,
+          entityMap,
+        }),
+        decorator
+      );
 
       this.setState({
         editors: [
           ...this.state.editors.slice(0, editorIndex),
-          { editorState: editorStateA, key, previewState: createPreview(editorState) },
+          { editorState: editorStateAB, key, previewState: createPreview(editorStateAB) },
           ...this.state.editors.slice(editorIndex + 2),
         ],
       });
@@ -275,40 +288,7 @@ class App extends React.Component {
     }
   };
 
-  // handleJoin = () => {
-  //   console.log('join');
-  //
-  //   const s0 = convertToRaw(this.state.editors['editor-0'].getCurrentContent());
-  //   const s1 = convertToRaw(this.state.editors['editor-1'].getCurrentContent());
-  //
-  //   // console.log(s0, s1);
-  //
-  //   const entityMap0 = s0.entityMap;
-  //   const blocks0 = s0.blocks.map(b => ({ ...b, entityRanges: b.entityRanges.map(r => entityMap0[r.key].data) }));
-  //
-  //   const entityMap1 = s1.entityMap;
-  //   const blocks1 = s1.blocks.map(b => ({ ...b, entityRanges: b.entityRanges.map(r => entityMap1[r.key].data) }));
-  //
-  //   const blocks = blocks0.concat(blocks1);
-  //   const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
-  //     (acc, data) => ({
-  //       ...acc,
-  //       [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
-  //     }),
-  //     {}
-  //   );
-  //
-  //   const raw = {
-  //     blocks,
-  //     entityMap,
-  //   };
-  //   // console.log(raw);
-  //
-  //   this.onChange(EditorState.createEmpty(), 'editor-1');
-  //   // this.onChange(EditorState.createWithContent(convertFromRaw(raw), decorator), 'editor-0');
-  // };
-
-  renderEditor = ({editorState, key, previewState}) => {
+  renderEditor = ({ editorState, key, previewState }) => {
     return (
       <section key={`s-${key}`} data-editor-key={key}>
         <VisibilitySensor key={`vs-${key}`} intervalCheck={false} scrollCheck={true} partialVisibility={true}>
@@ -317,7 +297,7 @@ class App extends React.Component {
               editorKey={key}
               readOnly={!isVisible}
               stripPastedStyles
-              editorState={isVisible ? editorState : previewState }
+              editorState={isVisible ? editorState : previewState}
               blockRendererFn={this.customBlockRenderer}
               customStyleMap={colorStyleMap}
               onChange={editorState => this.onChange(editorState, key)}
