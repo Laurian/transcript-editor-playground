@@ -78,6 +78,67 @@ const createPreview = editorState =>
     { allowUndo: false }
   );
 
+const createEntityMap = blocks =>
+  flatten(blocks.map(block => block.entityRanges)).reduce(
+    (acc, data) => ({
+      ...acc,
+      [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
+    }),
+    {}
+  );
+
+const createRaw = (blocks, contentState) =>
+  blocks.map(block => {
+    const key = block.getKey();
+    const type = block.getType();
+    const text = block.getText();
+    const data = block.getData();
+
+    const entityRanges = [];
+    block.findEntityRanges(
+      character => !!character.getEntity(),
+      (start, end) =>
+        entityRanges.push({
+          offset: start,
+          length: end - start,
+        })
+    );
+
+    const inlineStyleRanges = [];
+    block.findStyleRanges(
+      character => character.getStyle().size > 0,
+      (start, end) =>
+        inlineStyleRanges.push({
+          offset: start,
+          length: end - start,
+        })
+    );
+
+    return {
+      key,
+      type,
+      text,
+      data,
+      entityRanges: entityRanges.map(({ offset, length }) => {
+        const entityKey = block.getEntityAt(offset);
+        const entity = contentState.getEntity(entityKey);
+        return {
+          ...entity.getData(),
+          offset,
+          length,
+        };
+      }),
+      inlineStyleRanges: inlineStyleRanges.map(({ offset, length }) => {
+        const style = block.getInlineStyleAt(offset);
+        return {
+          style: Array.from(style.keys()).pop(),
+          offset,
+          length,
+        };
+      }),
+    };
+  });
+
 class App extends React.Component {
   state = {
     readOnly: false,
@@ -127,16 +188,8 @@ class App extends React.Component {
           ],
         }));
 
-        const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
-          (acc, data) => ({
-            ...acc,
-            [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
-          }),
-          {}
-        );
-
         const editorState = EditorState.set(
-          EditorState.createWithContent(convertFromRaw({ blocks, entityMap }), decorator),
+          EditorState.createWithContent(convertFromRaw({ blocks, entityMap: createEntityMap(blocks) }), decorator),
           { allowUndo: false }
         );
         return { editorState, key: `editor-${blocks[0].key}`, previewState: createPreview(editorState) };
@@ -264,81 +317,13 @@ class App extends React.Component {
         .toArray();
 
       const blocks = [
-        ...blocksA.map(block => {
-          const key = block.getKey();
-          const type = block.getType();
-          const text = block.getText();
-          const data = block.getData();
-
-          const entityRanges = [];
-          block.findEntityRanges(
-            character => !!character.getEntity(),
-            (start, end) =>
-              entityRanges.push({
-                offset: start,
-                length: end - start,
-              })
-          );
-
-          return {
-            key,
-            type,
-            text,
-            data,
-            entityRanges: entityRanges.map(({ offset, length }) => {
-              const entityKey = block.getEntityAt(offset);
-              const entity = editorStateA.getCurrentContent().getEntity(entityKey);
-              return {
-                ...entity.getData(),
-                offset,
-                length,
-              };
-            }),
-            inlineStyleRanges: [],
-          };
-        }),
-        ...blocksB.map(block => {
-          const key = block.getKey();
-          const type = block.getType();
-          const text = block.getText();
-          const data = block.getData();
-
-          const entityRanges = [];
-          block.findEntityRanges(
-            character => !!character.getEntity(),
-            (start, end) =>
-              entityRanges.push({
-                offset: start,
-                length: end - start,
-              })
-          );
-
-          return {
-            key,
-            type,
-            text,
-            data,
-            entityRanges: entityRanges.map(({ offset, length }) => {
-              const entityKey = block.getEntityAt(offset);
-              const entity = editorStateB.getCurrentContent().getEntity(entityKey);
-              return {
-                ...entity.getData(),
-                offset,
-                length,
-              };
-            }),
-            inlineStyleRanges: [],
-          };
-        }),
+        ...createRaw(blocksA, editorStateA.getCurrentContent()),
+        ...createRaw(blocksB, editorStateB.getCurrentContent()),
       ];
 
-      const entityMap = flatten(blocks.map(block => block.entityRanges)).reduce(
-        (acc, data) => ({
-          ...acc,
-          [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
-        }),
-        {}
-      );
+      console.log(blocks, convertToRaw(editorState.getCurrentContent()));
+
+      const entityMap = createEntityMap(blocks);
 
       // const editorStateAB = EditorState.createWithContent(
       //   convertFromRaw({
