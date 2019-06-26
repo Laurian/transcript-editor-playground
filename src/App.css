@@ -1,5 +1,6 @@
 .WrapperBlock {
   margin-bottom: 1em;
+  position: relative;
 }
 
 .speaker {
@@ -30,6 +31,7 @@ section[data-editor-key]::before {
 }
 
 .Token {
+  /* position: relative; */
   background-color: rgba(255, 255, 255, 1);
 }
 
@@ -39,4 +41,32 @@ audio {
 
 .buttons {
   margin-bottom: 1em;
+}
+
+/* .Token[data-start]::before {
+  pointer-events: none;
+  position: absolute;
+  top: -5px;
+  font-size: 7px;
+  content: attr(data-start);
+  color: red;
+} */
+
+.speaker2 {
+  left: -200px;
+  /* pointer-events: none; */
+  user-select: none;
+  position: absolute;
+}
+
+.B1 {
+  background-color: rgba(255, 0, 0, 0.5);
+}
+
+.B2 {
+  background-color: rgba(255, 0, 0, 0.5);
+}
+
+.B1.B2 {
+  background-color: rgba(255, 0, 0, 0.8);
 }

@@ -15,137 +15,26 @@ import VisibilitySensor from 'react-visibility-sensor';
 
 import './App.css';
 
-const flatten = list => list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
-
-const getEntityStrategy = mutability => (contentBlock, callback, contentState) => {
-  contentBlock.findEntityRanges(character => {
-    const entityKey = character.getEntity();
-    return entityKey && contentState.getEntity(entityKey).getMutability() === mutability;
-  }, callback);
-};
-
-const decorator = new CompositeDecorator([
-  {
-    strategy: getEntityStrategy('MUTABLE'),
-    component: ({ entityKey, contentState, children }) => {
-      const data = entityKey ? contentState.getEntity(entityKey).getData() : {};
-      return (
-        <span data-start={data.start} data-entity-key={data.key} className="Token">
-          {children}
-        </span>
-      );
-    },
+const customStyleMap = {
+  B1: {
+    backgroundColor: 'yellow',
+    className: 'B1',
   },
-]);
-
-const colorStyleMap = {
-  red: {
-    backgroundColor: 'rgba(255, 0, 0, .2)',
+  B2: {
+    color: 'blue',
+    className: 'B2',
   },
-  orange: {
-    color: 'rgba(255, 127, 0, 1.0)',
-  },
-  yellow: {
-    color: 'rgba(180, 180, 0, 1.0)',
-  },
-  green: {
-    backgroundColor: 'rgba(0, 180, 0, .2)',
-  },
-  blue: {
-    color: 'rgba(0, 0, 255, 1.0)',
-  },
-  indigo: {
-    color: 'rgba(75, 0, 130, 1.0)',
-  },
-  violet: {
-    color: 'rgba(127, 0, 255, 1.0)',
+  B3: {
+    borderBottom: '1px solid red',
+    className: 'B3',
   },
 };
-
-const createPreview = editorState =>
-  EditorState.set(
-    EditorState.createWithContent(
-      convertFromRaw({
-        blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({
-          ...block,
-          entityRanges: [],
-          inlineStyleRanges: [],
-        })),
-        entityMap: {},
-      }),
-      decorator
-    ),
-    { allowUndo: false }
-  );
-
-const createEntityMap = blocks =>
-  flatten(blocks.map(block => block.entityRanges)).reduce(
-    (acc, data) => ({
-      ...acc,
-      [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
-    }),
-    {}
-  );
-
-const createRaw = (blocks, contentState) =>
-  blocks.map(block => {
-    const key = block.getKey();
-    const type = block.getType();
-    const text = block.getText();
-    const data = block.getData();
-
-    const entityRanges = [];
-    block.findEntityRanges(
-      character => !!character.getEntity(),
-      (start, end) =>
-        entityRanges.push({
-          offset: start,
-          length: end - start,
-        })
-    );
-
-    const inlineStyleRanges = [];
-    block.findStyleRanges(
-      character => character.getStyle().size > 0,
-      (start, end) =>
-        inlineStyleRanges.push({
-          offset: start,
-          length: end - start,
-        })
-    );
-
-    return {
-      key,
-      type,
-      text,
-      data,
-      entityRanges: entityRanges.map(({ offset, length }) => {
-        const entityKey = block.getEntityAt(offset);
-        const entity = contentState.getEntity(entityKey);
-        return {
-          ...entity.getData(),
-          offset,
-          length,
-        };
-      }),
-      inlineStyleRanges: inlineStyleRanges.map(({ offset, length }) => {
-        const style = block.getInlineStyleAt(offset);
-        return {
-          style: Array.from(style.keys()).pop(),
-          offset,
-          length,
-        };
-      }),
-    };
-  });
 
 class App extends React.Component {
-  state = {
-    readOnly: false,
-    past: [],
-    // editors: [],
-    future: [],
-  };
+  state = {};
+
+  past = [];
+  future = [];
 
   player = React.createRef();
 
@@ -171,19 +60,19 @@ class App extends React.Component {
           })),
           inlineStyleRanges: [
             {
-              length: 15,
+              length: 35,
               offset: 5,
-              style: 'green',
+              style: 'B1',
             },
             {
-              length: 15,
-              offset: 10,
-              style: 'red',
+              length: 35,
+              offset: 8,
+              style: 'B2',
             },
             {
-              length: 5,
-              offset: 7,
-              style: 'blue',
+              length: 4,
+              offset: 8,
+              style: 'B3',
             },
           ],
         }));
@@ -205,16 +94,44 @@ class App extends React.Component {
       return {
         component: props => {
           const { block } = props;
+          const key = block.getKey();
           const speaker = block.getData().get('speaker') || '';
 
           return (
-            <div className="WrapperBlock">
+            <div className="WrapperBlock" key={`W${key}`}>
               <div contentEditable={false} className="speaker">
                 {speaker}:
               </div>
               <EditorBlock {...props} />
             </div>
           );
+
+          // return (
+          //   <div className="WrapperBlock">
+          //     <div contentEditable={false} className="speaker2">
+          //       <svg width={200} height={200}>
+          //         <AnnotationCallout
+          //           x={200}
+          //           y={0}
+          //           dy={10}
+          //           dx={-50}
+          //           color={'#9610ff'}
+          //           className="show-bg"
+          //           editMode={true}
+          //           note={{
+          //             title: speaker,
+          //             lineType: 'vertical',
+          //             bgPadding: { top: 15, left: 10, right: 10, bottom: 10 },
+          //             padding: 15,
+          //             titleColor: '#59039c',
+          //           }}
+          //           connector={{ end: 'arrow' }}
+          //         />
+          //       </svg>
+          //     </div>
+          //     <EditorBlock {...props} />
+          //   </div>
+          // );
         },
         props: {
           // TODO
@@ -301,7 +218,7 @@ class App extends React.Component {
 
     const blocks = editorState.getCurrentContent().getBlocksAsArray();
     const blockIndex = blocks.findIndex(block => block.getKey() === blockKey);
-    console.log(blockIndex);
+    // console.log(blockIndex);
 
     if (!contentChange && blockIndex === blocks.length - 1 && editorIndex < this.state.editors.length - 1) {
       const editorStateA = editorState;
@@ -362,9 +279,9 @@ class App extends React.Component {
       // const editorStateAllowUndo = EditorState.set(editorState2, { allowUndo: true });
       // const editorStateAB = EditorState.forceSelection(editorStateAllowUndo, editorStateA.getSelection());
 
+      this.past.push(this.state.editors);
+      this.future = [];
       this.setState({
-        past: [...this.state.past, this.state.editors],
-        future: [],
         editors: [
           ...this.state.editors.slice(0, editorIndex),
           { editorState: editorStateAB, key, previewState: createPreview(editorStateAB) },
@@ -372,9 +289,9 @@ class App extends React.Component {
         ],
       });
     } else if (contentChange) {
+      this.past.push(this.state.editors);
+      this.future = [];
       this.setState({
-        past: [...this.state.past, this.state.editors],
-        future: [],
         editors: [
           ...this.state.editors.slice(0, editorIndex),
           { editorState, key, previewState: createPreview(editorState) },
@@ -394,46 +311,71 @@ class App extends React.Component {
   };
 
   handleUndo = () => {
-    const { past, editors: present, future } = this.state;
-
-    const futurePast = past.slice(0);
-    const futurePresent = futurePast.pop();
+    const { editors: present } = this.state;
+    const futurePresent = this.past.pop();
 
     if (futurePresent) {
+      this.future.push(present);
       this.setState({
-        past: futurePast,
         editors: futurePresent,
-        future: [present, ...future],
       });
     }
   };
 
   handleRedo = () => {
-    const { past, editors: present, future } = this.state;
-
-    const futureFuture = future.slice(0);
-    const futurePresent = futureFuture.pop();
+    const { editors: present } = this.state;
+    const futurePresent = this.future.pop();
 
     if (futurePresent) {
+      this.past.push(present);
       this.setState({
-        past: [...past, present],
         editors: futurePresent,
-        future: futureFuture,
       });
     }
   };
 
+  handleKeyCommand = (command, editorState, key) => {
+    console.log(command);
+    if (command === 'undo' || command === 'redo') return 'handled';
+
+    const richTextState = RichUtils.handleKeyCommand(editorState, command);
+    if (richTextState) {
+      this.onChange(richTextState, key);
+      return true;
+    }
+
+    return 'not-handled';
+  };
+
+  filterKeyBindingFn = event => {
+    const { nativeEvent } = event;
+
+    if (nativeEvent.keyCode === 90 && nativeEvent.metaKey && !nativeEvent.shiftKey) {
+      setTimeout(() => this.handleUndo(), 0);
+      return 'undo';
+    }
+
+    if (nativeEvent.keyCode === 90 && nativeEvent.metaKey && nativeEvent.shiftKey) {
+      setTimeout(() => this.handleRedo(), 0);
+      return 'redo';
+    }
+
+    return getDefaultKeyBinding(event);
+  };
+
   handleFocus = (key, event) => {
-    console.log(event.nativeEvent);
+    console.log('click2');
     // this.editorRefs[key].focus();
     // Object.keys(this.editorRefs)
     //   .filter(k => k !== key)
     //   .forEach(k => this.editorRefs[k].blur());
   };
-
+  // onClick={event => this.handleFocus(key, event)}
+  // onFocus={event => console.log(event.nativeEvent)}
+  // customStyleFn={customStyleFn}
   renderEditor = ({ editorState, key, previewState }) => {
     return (
-      <section key={`s-${key}`} data-editor-key={key} onClick={event => this.handleFocus(key, event)}>
+      <section key={`s-${key}`} data-editor-key={key}>
         <VisibilitySensor key={`vs-${key}`} intervalCheck={false} scrollCheck={true} partialVisibility={true}>
           {({ isVisible }) => (
             <Editor
@@ -442,10 +384,11 @@ class App extends React.Component {
               stripPastedStyles
               editorState={isVisible ? editorState : previewState}
               blockRendererFn={this.customBlockRenderer}
-              customStyleMap={colorStyleMap}
+              customStyleMap={customStyleMap}
+              keyBindingFn={event => this.filterKeyBindingFn(event)}
+              handleKeyCommand={(command, editorState) => this.handleKeyCommand(command, editorState, key)}
               onChange={editorState => this.onChange(editorState, key)}
               ref={ref => this.setDomEditorRef(key, ref)}
-              onFocus={e => console.log(e.nativeEvent)}
             />
           )}
         </VisibilitySensor>
@@ -483,5 +426,108 @@ class App extends React.Component {
     );
   }
 }
+
+const MemoizedEditorBlock = React.memo(EditorBlock);
+const MemoizedEditor = React.memo(Editor);
+
+const flatten = list => list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
+
+const getEntityStrategy = mutability => (contentBlock, callback, contentState) => {
+  contentBlock.findEntityRanges(character => {
+    const entityKey = character.getEntity();
+    return entityKey && contentState.getEntity(entityKey).getMutability() === mutability;
+  }, callback);
+};
+
+const decorator = new CompositeDecorator([
+  {
+    strategy: getEntityStrategy('MUTABLE'),
+    component: ({ entityKey, contentState, children }) => {
+      const data = entityKey ? contentState.getEntity(entityKey).getData() : {};
+      return (
+        <span data-start={data.start} data-entity-key={data.key} className="Token">
+          {children}
+        </span>
+      );
+    },
+  },
+]);
+
+const createPreview = editorState =>
+  EditorState.set(
+    EditorState.createWithContent(
+      convertFromRaw({
+        blocks: convertToRaw(editorState.getCurrentContent()).blocks.map(block => ({
+          ...block,
+          entityRanges: [],
+          inlineStyleRanges: [],
+        })),
+        entityMap: {},
+      }),
+      decorator
+    ),
+    { allowUndo: false }
+  );
+
+const createEntityMap = blocks =>
+  flatten(blocks.map(block => block.entityRanges)).reduce(
+    (acc, data) => ({
+      ...acc,
+      [data.key]: { type: 'TOKEN', mutability: 'MUTABLE', data },
+    }),
+    {}
+  );
+
+const createRaw = (blocks, contentState) =>
+  blocks.map(block => {
+    const key = block.getKey();
+    const type = block.getType();
+    const text = block.getText();
+    const data = block.getData();
+
+    const entityRanges = [];
+    block.findEntityRanges(
+      character => !!character.getEntity(),
+      (start, end) =>
+        entityRanges.push({
+          offset: start,
+          length: end - start,
+        })
+    );
+
+    const inlineStyleRanges = [];
+    block.findStyleRanges(
+      character => character.getStyle().size > 0,
+      (start, end) =>
+        inlineStyleRanges.push({
+          offset: start,
+          length: end - start,
+        })
+    );
+
+    return {
+      key,
+      type,
+      text,
+      data,
+      entityRanges: entityRanges.map(({ offset, length }) => {
+        const entityKey = block.getEntityAt(offset);
+        const entity = contentState.getEntity(entityKey);
+        return {
+          ...entity.getData(),
+          offset,
+          length,
+        };
+      }),
+      inlineStyleRanges: inlineStyleRanges.map(({ offset, length }) => {
+        const style = block.getInlineStyleAt(offset);
+        return {
+          style: Array.from(style.keys()).pop(),
+          offset,
+          length,
+        };
+      }),
+    };
+  });
 
 export default App;

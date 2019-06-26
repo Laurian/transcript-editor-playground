@@ -6,7 +6,7 @@ import shortid from 'shortid';
 import transcript from './transcript';
 
 const NAMESPACE = '696fdeb0-9404-11e9-aa9c-518ba77d48f0';
-const translateID = id => bs58.encode(toBuffer(uuidv5(id, NAMESPACE, new Array(), 0)));
+const translateID = id => bs58.encode(toBuffer(uuidv5(id, NAMESPACE, [], 0)));
 
 const generateID = () => {
   let id = null;
@@ -53,11 +53,14 @@ const segments = words.reduce((acc, { duration, time, paragraphId, value, speake
       }
     }
 
-    return [...acc, {
-      id: fid,
-      speaker: speakers[speaker] ? speakers[speaker].name : null,
-      words: [word],
-    }];
+    return [
+      ...acc,
+      {
+        id: fid,
+        speaker: speakers[speaker] ? speakers[speaker].name : null,
+        words: [word],
+      },
+    ];
   }
 
   p.words.push(word);
@@ -65,7 +68,6 @@ const segments = words.reduce((acc, { duration, time, paragraphId, value, speake
 }, []);
 
 segments.pop(); // FIXME this kills last para
-
 
 console.log(generateID());
 console.log(segments);
