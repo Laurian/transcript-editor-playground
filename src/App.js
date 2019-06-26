@@ -9,7 +9,7 @@ import {
   getDefaultKeyBinding,
   Modifier,
   RichUtils,
-} from 'draft-js';
+} from './draft-js/Draft.js';
 import chunk from 'lodash.chunk';
 import VisibilitySensor from 'react-visibility-sensor';
 
@@ -17,7 +17,7 @@ import './App.css';
 
 const customStyleMap = {
   B1: {
-    backgroundColor: 'yellow',
+    // backgroundColor: 'yellow',
     className: 'B1',
   },
   B2: {
