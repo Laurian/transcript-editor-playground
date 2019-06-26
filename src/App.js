@@ -9,7 +9,7 @@ import {
   getDefaultKeyBinding,
   Modifier,
   RichUtils,
-} from './draft-js/Draft.js';
+} from 'draft-js';
 import chunk from 'lodash.chunk';
 import VisibilitySensor from 'react-visibility-sensor';
 
