@@ -10,6 +10,7 @@ import {
   Modifier,
   RichUtils,
 } from 'draft-js';
+import encodeInlineStyleRanges from '../node_modules/draft-js/lib/encodeInlineStyleRanges';
 import chunk from 'lodash.chunk';
 import VisibilitySensor from 'react-visibility-sensor';
 
@@ -69,11 +70,11 @@ class App extends React.Component {
               offset: 8,
               style: 'B2',
             },
-            {
-              length: 4,
-              offset: 8,
-              style: 'B3',
-            },
+            // {
+            //   length: 4,
+            //   offset: 8,
+            //   style: 'B3',
+            // },
           ],
         }));
 
@@ -105,33 +106,6 @@ class App extends React.Component {
               <EditorBlock {...props} />
             </div>
           );
-
-          // return (
-          //   <div className="WrapperBlock">
-          //     <div contentEditable={false} className="speaker2">
-          //       <svg width={200} height={200}>
-          //         <AnnotationCallout
-          //           x={200}
-          //           y={0}
-          //           dy={10}
-          //           dx={-50}
-          //           color={'#9610ff'}
-          //           className="show-bg"
-          //           editMode={true}
-          //           note={{
-          //             title: speaker,
-          //             lineType: 'vertical',
-          //             bgPadding: { top: 15, left: 10, right: 10, bottom: 10 },
-          //             padding: 15,
-          //             titleColor: '#59039c',
-          //           }}
-          //           connector={{ end: 'arrow' }}
-          //         />
-          //       </svg>
-          //     </div>
-          //     <EditorBlock {...props} />
-          //   </div>
-          // );
         },
         props: {
           // TODO
@@ -427,9 +401,6 @@ class App extends React.Component {
   }
 }
 
-const MemoizedEditorBlock = React.memo(EditorBlock);
-const MemoizedEditor = React.memo(Editor);
-
 const flatten = list => list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), []);
 
 const getEntityStrategy = mutability => (contentBlock, callback, contentState) => {
@@ -495,15 +466,16 @@ const createRaw = (blocks, contentState) =>
         })
     );
 
-    const inlineStyleRanges = [];
-    block.findStyleRanges(
-      character => character.getStyle().size > 0,
-      (start, end) =>
-        inlineStyleRanges.push({
-          offset: start,
-          length: end - start,
-        })
-    );
+    // const inlineStyleRanges = [];
+    // block.findStyleRanges(
+    //   character => character.getStyle().size > 0,
+    //   (start, end) =>
+    //     inlineStyleRanges.push({
+    //       offset: start,
+    //       length: end - start,
+    //     })
+    // );
+    const inlineStyleRanges = encodeInlineStyleRanges(block);
 
     return {
       key,
