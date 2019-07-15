@@ -4,13 +4,13 @@
   "private": true,
   "dependencies": {
     "bs58": "^4.0.1",
-    "draft-js": "^0.10.5",
+    "draft-js": "^0.11.0",
     "lodash.chunk": "^4.2.0",
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
     "react-scripts": "3.0.1",
-    "react-time-slicer": "^1.0.1",
-    "react-visibility-sensor": "^5.0.2",
+    "react-time-slicer": "^2.0.1",
+    "react-visibility-sensor": "^5.1.0",
     "shortid": "^2.2.14",
     "typedarray-to-buffer": "^3.1.5",
     "uuid": "^3.3.2"
@@ -82,7 +82,7 @@
     ]
   },
   "devDependencies": {
-    "eslint-config-prettier": "5.0.0",
+    "eslint-config-prettier": "6.0.0",
     "eslint-plugin-prettier": "3.1.0",
     "prettier": "1.18.2"
   }
