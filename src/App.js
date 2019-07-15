@@ -7,29 +7,12 @@ import {
   convertFromRaw,
   convertToRaw,
   getDefaultKeyBinding,
-  Modifier,
-  RichUtils,
 } from 'draft-js';
 import encodeInlineStyleRanges from '../node_modules/draft-js/lib/encodeInlineStyleRanges';
 import chunk from 'lodash.chunk';
 import VisibilitySensor from 'react-visibility-sensor';
 
 import './App.css';
-
-const customStyleMap = {
-  B1: {
-    // backgroundColor: 'yellow',
-    className: 'B1',
-  },
-  B2: {
-    color: 'blue',
-    className: 'B2',
-  },
-  B3: {
-    borderBottom: '1px solid red',
-    className: 'B3',
-  },
-};
 
 class App extends React.Component {
   state = {};
@@ -59,23 +42,7 @@ class App extends React.Component {
             length,
             key: id,
           })),
-          inlineStyleRanges: [
-            {
-              length: 35,
-              offset: 5,
-              style: 'B1',
-            },
-            {
-              length: 35,
-              offset: 8,
-              style: 'B2',
-            },
-            // {
-            //   length: 4,
-            //   offset: 8,
-            //   style: 'B3',
-            // },
-          ],
+          inlineStyleRanges: [],
         }));
 
         const editorState = EditorState.set(
@@ -312,12 +279,6 @@ class App extends React.Component {
     console.log(command);
     if (command === 'undo' || command === 'redo') return 'handled';
 
-    const richTextState = RichUtils.handleKeyCommand(editorState, command);
-    if (richTextState) {
-      this.onChange(richTextState, key);
-      return true;
-    }
-
     return 'not-handled';
   };
 
@@ -358,7 +319,6 @@ class App extends React.Component {
               stripPastedStyles
               editorState={isVisible ? editorState : previewState}
               blockRendererFn={this.customBlockRenderer}
-              customStyleMap={customStyleMap}
               keyBindingFn={event => this.filterKeyBindingFn(event)}
               handleKeyCommand={(command, editorState) => this.handleKeyCommand(command, editorState, key)}
               onChange={editorState => this.onChange(editorState, key)}
